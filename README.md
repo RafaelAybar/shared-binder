@@ -58,6 +58,8 @@ En esta tabla comparativa se aprecia mejor:
 | **Metadatos del juego** | Texto Oracle, reglas, legalidad por formato, artista, imágenes en alta resolución | Nombres de productos, IDs de colección/grupo y atributos básicos (sin texto de reglas) |
 | **Costo y acceso** | Gratis, no requiere clave de API (*API key*) | Gratis, no requiere clave de API (*API key*) |
 
+Se puede obtener el detalle en [Documentación de la ingesta](docs/procesos/ingesta.md)
+
 ### PHP y versión de Laravel
 - Versión de PHP: 8.5 o superior
 - Versión de Laravel: 13

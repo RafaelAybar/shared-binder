@@ -5,11 +5,11 @@ on:
     branches:
       - main
     paths:
-      - 'shared-test/**'
+      - 'shared-binder**'
       - '.github/workflows/tests.yml'
   pull_request:
     paths:
-      - 'shared-test/**'
+      - 'shared-binder/**'
       - '.github/workflows/tests.yml'
 
 permissions:

@@ -36,14 +36,20 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
+
+      - name: Setup Application
+        working-directory: shared-binder
+        run: composer install
+
       - name: Generate application key
         working-directory: shared-binder
         run: |
           cp .env.example .env
           php artisan key:generate --force
-      - name: Setup Application
+
+      - name: Run tests
         working-directory: shared-binder
-        run: composer install && composer test
+        run: composer test
 
       - name: Run CI Checks
         working-directory: shared-binder

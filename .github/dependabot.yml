@@ -1,12 +1,27 @@
 version: 2
+
 updates:
-  - package-ecosystem: "github-actions"
+  - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
-    cooldown:
-      default-days: 5
-    groups:
-      github-actions:
-        patterns:
-          - "*"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Madrid"
+
+  - package-ecosystem: "composer"
+    directory: "/shared-binder"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Madrid"
+
+  - package-ecosystem: "npm"
+    directory: "/shared-binder"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Madrid"
+

@@ -41,6 +41,12 @@ jobs:
         working-directory: shared-binder
         run: composer install
 
+      - name: Build frontend assets
+        working-directory: shared-binder
+        run: |
+          npm ci
+          npm run build
+
       - name: Generate application key
         working-directory: shared-binder
         run: |

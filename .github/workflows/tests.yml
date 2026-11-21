@@ -44,7 +44,7 @@ jobs:
       - name: Build frontend assets
         working-directory: shared-binder
         run: |
-          npm ci
+          npm ci --ignore-scripts
           npm run build
 
       - name: Generate application key

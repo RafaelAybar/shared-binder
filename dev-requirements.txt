@@ -1,0 +1,3 @@
+pydantic==2.14.4
+psycopg[binary]==3.3.9
+pytest==9.2.0

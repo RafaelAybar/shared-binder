@@ -1,6 +1,6 @@
 -- Catálogo de Magic: The Gathering cargado desde Scryfall.
 -- Lo ejecuta el ETL en cada arranque: todas las sentencias son idempotentes.
--- Requiere PostgreSQL 18 o superior compilado con ICU (probado en PostgreSQL 19).
+-- Requiere PostgreSQL 19 o superior compilado con ICU.
 --
 -- Las columnas usan los nombres de los campos de Scryfall, y created_at/updated_at
 -- siguen la convención de Laravel para que un modelo Eloquent funcione sin configurar.

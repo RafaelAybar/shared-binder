@@ -10,6 +10,7 @@ y dentro de ellos las cartas no digitales que ya han salido (nada de previews).
 
 import gzip
 import logging
+from collections import Counter
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -39,6 +40,7 @@ class Resumen:
     insertadas: int = 0
     actualizadas: int = 0
     descartadas: int = 0  # cartas no oficiales: digitales o aún sin publicar
+    duplicadas: int = 0  # copias repetidas de una carta; se guarda la última
     invalidas: int = 0  # registros que no superan la validación
     errores: int = 0  # expansiones que no se han podido cargar
 
@@ -50,7 +52,8 @@ class Resumen:
         return (
             f"{self.sets} sets, {self.insertadas} cartas nuevas, "
             f"{self.actualizadas} actualizadas, {self.descartadas} descartadas por no "
-            f"oficiales, {self.invalidas} registros inválidos, {self.errores} errores"
+            f"oficiales, {self.duplicadas} repetidas, {self.invalidas} registros inválidos, "
+            f"{self.errores} errores"
         )
 
 
@@ -83,11 +86,16 @@ def cargar_pendientes(conn: psycopg.Connection, cliente: ClienteScryfall) -> Res
     """Carga las expansiones oficiales que faltan y re-sincroniza las recientes."""
     resumen = Resumen()
     sets = _sets_oficiales(cliente, resumen)
-    cargados = bd.codigos_sets(conn)
+    guardados = bd.sets_guardados(conn)
     limite = hoy() - timedelta(days=DIAS_RESINCRONIZACION)
 
-    nuevas = [s for s in sets.values() if s.code not in cargados and s.card_count > 0]
-    recientes = [s for s in sets.values() if s.code in cargados and s.released_at >= limite]
+    # Se compara el par (id, código): también se cargan los sets cuyo código ha cambiado y
+    # los que Scryfall ha recreado con otro id. Estos últimos dan error en cada ejecución
+    # hasta que se resuelvan, en vez de quedar olvidados.
+    nuevas = [s for s in sets.values() if (s.id, s.code) not in guardados and s.card_count > 0]
+    recientes = [
+        s for s in sets.values() if (s.id, s.code) in guardados and s.released_at >= limite
+    ]
     logger.info(
         "%d expansiones nuevas y %d publicadas en los últimos %d días por re-sincronizar",
         len(nuevas), len(recientes), DIAS_RESINCRONIZACION,
@@ -203,25 +211,51 @@ def _guardar(
     sets: dict[UUID, SetScryfall],
     resumen: Resumen,
 ) -> None:
-    """Guarda cartas y sus sets en una transacción. Solo se guardan los sets que tienen
-    alguna carta, para que un set vacío se vuelva a intentar en la próxima ejecución."""
-    vistos: set[UUID] = set()
+    """Guarda cartas y sus sets en una transacción.
 
-    def registrar_sets(origen: Iterable[CartaScryfall]) -> Iterator[CartaScryfall]:
-        for carta in origen:
-            vistos.add(carta.set_id)
-            yield carta
+    Solo se guardan los sets que tienen alguna carta, para que un set vacío se vuelva a
+    intentar en la próxima ejecución. Los sets cuyo código ya pertenece a otro set de la
+    base de datos se omiten con sus cartas, sin impedir que se guarde el resto.
+    """
+    vistos: set[UUID] = set()
+    omitidas: Counter[UUID] = Counter()  # cartas de sets con el código ocupado
 
     with conn.transaction():
-        bd.copiar_a_temporal(conn, registrar_sets(cartas))
-        bd.upsert_sets(conn, (sets[i] for i in vistos))  # antes que las cartas (clave ajena)
-        insertadas, actualizadas = bd.fusionar_cartas(conn)
+        ocupados = bd.codigos_ocupados(conn, sets.values())
 
+        def filtrar(origen: Iterable[CartaScryfall]) -> Iterator[CartaScryfall]:
+            for carta in origen:
+                if carta.set_id in ocupados:
+                    omitidas[carta.set_id] += 1
+                    continue
+                vistos.add(carta.set_id)
+                yield carta
+
+        bd.copiar_a_temporal(conn, filtrar(cartas))
+        bd.upsert_sets(conn, (sets[i] for i in vistos))  # antes que las cartas (clave ajena)
+        fusion = bd.fusionar_cartas(conn)
+
+    for id_set, cantidad in omitidas.items():
+        set_ = sets[id_set]
+        logger.error(
+            "No se guarda la expansión %s (%s) ni sus %d cartas: Scryfall le ha dado el id %s, "
+            "pero el código ya pertenece al set %s de la base de datos. Revisa a mano cuál "
+            "sobra y vuelve a cargarla con --set %s",
+            set_.code, set_.name, cantidad, set_.id, ocupados[id_set], set_.code,
+        )
+    if fusion.duplicadas:
+        logger.warning(
+            "%d cartas llegaron repetidas; se ha guardado la última copia de cada una",
+            fusion.duplicadas,
+        )
     resumen.sets += len(vistos)
-    resumen.insertadas += insertadas
-    resumen.actualizadas += actualizadas
+    resumen.insertadas += fusion.insertadas
+    resumen.actualizadas += fusion.actualizadas
+    resumen.duplicadas += fusion.duplicadas
+    resumen.errores += len(omitidas)
     logger.info(
-        "Guardados %d sets: %d cartas nuevas y %d actualizadas", len(vistos), insertadas, actualizadas
+        "Guardados %d sets: %d cartas nuevas y %d actualizadas",
+        len(vistos), fusion.insertadas, fusion.actualizadas,
     )
 
 

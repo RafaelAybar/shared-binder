@@ -66,6 +66,17 @@ ERROR y se descarta sin detener la carga. Al final se registra un resumen y el s
 termina con código 1 si hubo registros inválidos o expansiones que no se pudieron cargar
 (0 si todo fue bien).
 
+Otros casos que no detienen la carga:
+
+- **Carta repetida** (mismo `id` dos veces en el mismo lote, por ejemplo si la paginación
+  de Scryfall se desplaza durante la descarga): se guarda la última copia recibida y se
+  avisa con nivel WARNING. No cuenta como error.
+- **Código de set ocupado** (Scryfall recrea un set con otro `id` pero el mismo código, que
+  es único en `mtg_sets`): el set y sus cartas se omiten con nivel ERROR y el resto se carga
+  con normalidad. El modo automático lo vuelve a intentar en cada ejecución hasta que se
+  resuelva a mano: borra el set que sobra (y sus cartas) y vuelve a cargarlo con
+  `--set CÓDIGO`.
+
 ### Imágenes
 
 Solo se guarda la URL de la imagen en tamaño *small* (146×204) servida por Scryfall:
@@ -100,3 +111,28 @@ El ETL crea las tablas al arrancar si no existen (`python-scripts/esquema.sql`):
 | `LOG_DIR` | No | `python-scripts/logs` | Logs diarios en UTC |
 | `DOWNLOAD_DIR` | No | `python-scripts/descargas` | Descarga temporal del bulk |
 | `RESYNC_DAYS` | No | `30` | Días de re-sincronización de expansiones recientes |
+
+### Tests
+
+Los tests están en `python-scripts/tests/` y usan pytest (`dev-requirements.txt`):
+
+```bash
+pip install -r dev-requirements.txt
+cd python-scripts && pytest
+```
+
+- **Unitarios** (`test_ingesta.py`, `test_modelos.py`, `test_scryfall.py`): no se conectan
+  a Scryfall ni a PostgreSQL, y tardan menos de un segundo. Cada caso parte de las tres
+  cartas de ejemplo de `tests/ejemplos.py` (una normal, una de dos caras y una en español):
+  errores de formato, líneas dañadas del bulk, cartas y sets no oficiales, cartas
+  repetidas, códigos de set ocupados, errores aislados por expansión, cabeceras
+  obligatorias de Scryfall, reintentos y descarga del bulk.
+- **Base de datos** (`test_bd.py`): comprueban lo que resuelve PostgreSQL. Por ejemplo, qué
+  copia se guarda de una carta repetida, que las filas sin cambios no se tocan y que un
+  error deshace la carga. Se omiten salvo que se defina `TEST_DATABASE_URL`, que debe
+  apuntar a un PostgreSQL 19 o superior. Cada test trabaja en un esquema propio que borra
+  al terminar, así que no toca las tablas del esquema `public`:
+
+  ```bash
+  TEST_DATABASE_URL=postgresql://usuario:clave@127.0.0.1:5432/basedatos pytest
+  ```

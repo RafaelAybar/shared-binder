@@ -1,0 +1,13 @@
+# Configuración de pytest: https://docs.pytest.org/en/stable/reference/customize.html
+[pytest]
+testpaths = ["tests"]
+# Los módulos del ETL se importan igual que en main.py (import etl), y los tests comparten
+# los datos de ejemplo y los dobles de prueba de tests/.
+pythonpath = [".", "tests"]
+# Marcadores, opciones y parámetros mal escritos son un error, no un aviso.
+strict = true
+# -ra: al final, resume los tests omitidos y el motivo (p. ej. sin base de datos).
+addopts = ["-ra"]
+markers = [
+    "bd: necesita PostgreSQL 19 o superior (TEST_DATABASE_URL); sin ella se omite",
+]

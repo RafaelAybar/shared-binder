@@ -71,5 +71,5 @@ Se puede obtener el detalle en [Documentación de la ingesta](docs/procesos/inge
 - Svelte
 
 ### Base de datos
-- Postgres 18 o superior
+- Postgres 19 o superior
 

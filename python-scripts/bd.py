@@ -2,7 +2,8 @@
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Final
+from typing import Final, NamedTuple
+from uuid import UUID
 
 import psycopg
 
@@ -41,18 +42,39 @@ SQL_UPSERT_SETS: Final = f"""
     {_upsert("mtg_sets", COLUMNAS_SETS)}
 """
 
-# DISTINCT ON evita el error de ON CONFLICT si una carta llegara repetida. xmax = 0
-# identifica las filas insertadas (las actualizadas tienen xmax distinto de 0).
+# orden numera las cartas según llegan en el COPY.
+SQL_CREAR_TEMPORAL: Final = """
+    CREATE TEMP TABLE tmp_cards (
+        LIKE mtg_cards INCLUDING DEFAULTS,
+        orden bigint GENERATED ALWAYS AS IDENTITY
+    ) ON COMMIT DROP
+"""
+
+# Si una carta llega repetida (p. ej. porque la paginación de Scryfall se desplaza
+# mientras actualizan un set), DISTINCT ON se queda con la última copia recibida: siempre
+# la misma, para que dos cargas iguales no alternen entre versiones.
+# RETURNING old: old es NULL en las filas insertadas y contiene la fila anterior en las
+# actualizadas. Las filas sin cambios no se devuelven.
 SQL_FUSIONAR_CARTAS: Final = f"""
     WITH filas AS (
         INSERT INTO mtg_cards ({", ".join(COLUMNAS_CARTAS)})
-        SELECT DISTINCT ON (id) {", ".join(COLUMNAS_CARTAS)} FROM tmp_cards ORDER BY id
+        SELECT DISTINCT ON (id) {", ".join(COLUMNAS_CARTAS)}
+        FROM tmp_cards
+        ORDER BY id, orden DESC
         {_upsert("mtg_cards", COLUMNAS_CARTAS)}
-        RETURNING (xmax = 0) AS insertada
+        RETURNING old.id IS NULL AS insertada
     )
-    SELECT count(*) FILTER (WHERE insertada), count(*) FILTER (WHERE NOT insertada)
+    SELECT count(*) FILTER (WHERE insertada),
+           count(*) FILTER (WHERE NOT insertada),
+           (SELECT count(*) - count(DISTINCT id) FROM tmp_cards)
     FROM filas
 """
+
+
+class ResultadoFusion(NamedTuple):
+    insertadas: int
+    actualizadas: int
+    duplicadas: int  # copias repetidas descartadas
 
 
 def conectar() -> psycopg.Connection:
@@ -78,8 +100,28 @@ def hay_sets(conn: psycopg.Connection) -> bool:
     return bool(fila and fila[0])
 
 
-def codigos_sets(conn: psycopg.Connection) -> set[str]:
-    return {codigo for (codigo,) in conn.execute("SELECT code FROM mtg_sets")}
+def sets_guardados(conn: psycopg.Connection) -> set[tuple[UUID, str]]:
+    """Pares (id, código) de los sets guardados."""
+    return {(id_, codigo) for id_, codigo in conn.execute("SELECT id, code FROM mtg_sets")}
+
+
+def codigos_ocupados(conn: psycopg.Connection, sets: Iterable[SetScryfall]) -> dict[UUID, UUID]:
+    """Sets cuyo código ya está guardado con otro id: {id en Scryfall: id guardado}.
+
+    Pasa si Scryfall recrea un set con otro id y el mismo código. Como el código es
+    único, el upsert fallaría y desharía la transacción entera.
+    """
+    id_por_codigo = {s.code: s.id for s in sets}
+    if not id_por_codigo:
+        return {}
+    filas = conn.execute(
+        "SELECT code, id FROM mtg_sets WHERE code = ANY(%s)", [list(id_por_codigo)]
+    )
+    return {
+        id_por_codigo[codigo]: id_guardado
+        for codigo, id_guardado in filas
+        if id_guardado != id_por_codigo[codigo]
+    }
 
 
 def upsert_sets(conn: psycopg.Connection, sets: Iterable[SetScryfall]) -> None:
@@ -100,7 +142,7 @@ def copiar_a_temporal(conn: psycopg.Connection, cartas: Iterable[CartaScryfall])
     transacción. Después hay que llamar a fusionar_cartas.
     """
     with conn.cursor() as cur:
-        cur.execute("CREATE TEMP TABLE tmp_cards (LIKE mtg_cards INCLUDING DEFAULTS) ON COMMIT DROP")
+        cur.execute(SQL_CREAR_TEMPORAL)
         with cur.copy(f"COPY tmp_cards ({', '.join(COLUMNAS_CARTAS)}) FROM STDIN") as copia:
             for c in cartas:
                 copia.write_row((
@@ -110,8 +152,8 @@ def copiar_a_temporal(conn: psycopg.Connection, cartas: Iterable[CartaScryfall])
                 ))
 
 
-def fusionar_cartas(conn: psycopg.Connection) -> tuple[int, int]:
-    """Pasa tmp_cards a mtg_cards. Devuelve (insertadas, actualizadas)."""
+def fusionar_cartas(conn: psycopg.Connection) -> ResultadoFusion:
+    """Pasa tmp_cards a mtg_cards."""
     fila = conn.execute(SQL_FUSIONAR_CARTAS).fetchone()
     assert fila is not None
-    return fila[0], fila[1]
+    return ResultadoFusion(*fila)

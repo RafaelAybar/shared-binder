@@ -49,7 +49,6 @@ No hay estándar alguno oficial por parte de cada juego de cartas, por lo que se
 
 En esta tabla comparativa se aprecia mejor:
 
-
 | Característica | [Scryfall](https://scryfall.com "Scryfall Magic: The Gathering Search") | [TCGCSV](https://tcgcsv.com "TCGCSV") |
 | :--- | :--- | :--- |
 | **Enfoque principal** | Base de datos, reglas, arte y buscador de cartas de MTG | Catálogo de productos y precios de TCGplayer |

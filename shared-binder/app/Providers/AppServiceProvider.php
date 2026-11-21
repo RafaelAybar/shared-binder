@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -15,7 +16,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->restrictDatabaseConnectionsToPostgres();
     }
 
     /**
@@ -24,6 +25,18 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+    }
+
+    /**
+     * Laravel merges its own default connections (sqlite, mysql, mariadb,
+     * sqlsrv) into "database.connections". Keep only the ones declared in
+     * config/database.php so PostgreSQL is the sole connection available.
+     */
+    protected function restrictDatabaseConnectionsToPostgres(): void
+    {
+        $connections = config('database.connections', []);
+
+        config(['database.connections' => Arr::only($connections, ['pgsql'])]);
     }
 
     /**

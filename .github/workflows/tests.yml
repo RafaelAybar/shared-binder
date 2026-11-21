@@ -53,9 +53,7 @@ jobs:
           cp .env.example .env
           php artisan key:generate --force
 
-      - name: Run tests
-        working-directory: shared-binder
-        run: composer test
+     # Para ejecutar test relacionados con PostgreSQL, se hace en local
 
       - name: Run CI Checks
         working-directory: shared-binder

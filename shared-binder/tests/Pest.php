@@ -15,8 +15,23 @@ use Tests\TestCase;
 */
 
 pest()->extend(TestCase::class)
-    ->use(RefreshDatabase::class)
     ->in('Feature');
+
+/*
+|--------------------------------------------------------------------------
+| Database Tests
+|--------------------------------------------------------------------------
+|
+| Tests that need PostgreSQL live in "tests/Feature/Database". They get a
+| fresh database for every test and are tagged with the "database" group,
+| which CI excludes ("composer test:ci") because it has no PostgreSQL.
+| A test elsewhere can opt in with ->group('database') and RefreshDatabase.
+|
+*/
+
+pest()->use(RefreshDatabase::class)
+    ->group('database')
+    ->in('Feature/Database');
 
 /*
 |--------------------------------------------------------------------------

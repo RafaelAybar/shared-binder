@@ -23,7 +23,8 @@ Python 3.14 o superior.
 
 ### Librerías
 
-Pydantic 2.14.3 o superior
+Pydantic 2.14.3 o superior.
+Pytest 9.2.0 o superior.
 
 ## Ingesta de Magic: The Gathering (Scryfall)
 

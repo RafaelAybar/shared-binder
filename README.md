@@ -10,6 +10,7 @@ Shared-Binder es una aplicación web que permite tanto gestionar colecciones de 
 ## Funcionalidad
 
 Esta web permite a jugadores gestionar la collección de cartas de múltiples juegos, por ejemplo:
+
 * Magic the Gathering
 * Yu-Gi-Oh!
 * Digimon Card Game
@@ -37,14 +38,14 @@ intelectual dependiendo del juego de cartas y la monetización de esta aplicaci�
 |            One Piece           |                   Sí                   |                       No                       |
 |             Pokemon            |                   Sí                   |                       No                       |
 
-
 ## Infraestructura y automatización
 
 ### Ingesta de datos
 
 No hay estándar alguno oficial por parte de cada juego de cartas, por lo que se podrían usar dos servicios:
-- [**tcgcsv**](https://tcgcsv.com/). Es una web que permite ingestar los datos en formato CSV, y actualiza diariamente  las colecciones de TODOS los TCG's, incluyendo los precios.
-- [**Scryfall**](https://scryfall.com/docs/api): Permite obtenener información en JSON y varios formatos además de las imágenes, pero en el ámbito de Magic The Gathering.
+
+* [**tcgcsv**](https://tcgcsv.com/). Es una web que permite ingestar los datos en formato CSV, y actualiza diariamente  las colecciones de TODOS los TCG's, incluyendo los precios.
+* [**Scryfall**](https://scryfall.com/docs/api): Permite obtenener información en JSON y varios formatos además de las imágenes, pero en el ámbito de Magic The Gathering.
 
 En esta tabla comparativa se aprecia mejor:
 
@@ -61,15 +62,18 @@ En esta tabla comparativa se aprecia mejor:
 Se puede obtener el detalle en [Documentación de la ingesta](docs/procesos/ingesta.md)
 
 ### PHP y versión de Laravel
-- Versión de PHP: 8.5 o superior
-- Versión de Laravel: 13
+
+* Versión de PHP: 8.5 o superior
+* Versión de Laravel: 13
 
 ### Versión de Node
-- Node 26
+
+* Node 26
 
 ### Librerías del frontend
-- Svelte
+
+* Svelte
 
 ### Base de datos
-- Postgres 19 o superior
 
+* Postgres 19 o superior

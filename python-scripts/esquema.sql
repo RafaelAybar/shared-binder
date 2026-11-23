@@ -46,6 +46,9 @@ $$;
 -- * COLLATE "C" en los códigos (set, idioma, rareza...): son identificadores ASCII, se
 --   comparan byte a byte (más rápido) y sus índices no dependen de la versión de glibc
 --   del servidor, así que no hay que reindexarlos al actualizar el sistema operativo.
+-- * Las tablas guardan cada dato tal como lo da Scryfall y no se normalizan: finishes es una
+--   lista, y name, mana_cost y type_line dependen de oracle_id. Solo las escribe el ETL.
+--   Ver «Formas normales» en docs/base-de-datos/diagrama-entidad-relacion.md.
 
 CREATE TABLE IF NOT EXISTS mtg_sets (
     id              uuid        PRIMARY KEY,  -- id del set en Scryfall

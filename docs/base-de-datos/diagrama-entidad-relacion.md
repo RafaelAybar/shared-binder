@@ -162,6 +162,82 @@ erDiagram
 Para añadir un TCG hay que darlo de alta en `tcgs` y crear sus cinco tablas: `<tcg>_sets`,
 `<tcg>_cards`, `<tcg>_binder_cards`, `<tcg>_deck_cards` y `<tcg>_loan_cards`.
 
+## Formas normales
+
+Las tablas de los jugadores están en tercera forma normal (3FN), salvo `tcg_id`, que se repite
+a propósito. El catálogo de Magic (`mtg_cards`) no se normaliza, porque es una copia de
+Scryfall.
+
+- **1FN**: cada columna guarda un solo valor.
+- **2FN**: ninguna columna depende solo de una parte de una clave.
+- **3FN**: ninguna columna depende de otra columna que no sea clave.
+
+| Tabla | Claves candidatas | Forma normal |
+| --- | --- | --- |
+| `users` | `id`; `email` y `username` también son únicos | 3FN |
+| `tcgs` | `id`, `code` | 3FN |
+| `binders` | `id`, `(user_id, tcg_id)` | 3FN |
+| `decks` | `id` | 3FN salvo `tcg_id` |
+| `loans` | `id` | 3FN |
+| `mtg_binder_cards` | `id`, `(binder_id, card_id, finish, condition)` | 3FN salvo `tcg_id` |
+| `mtg_deck_cards` | `(deck_id, card_id, board)` | 3FN salvo `tcg_id` |
+| `mtg_loan_cards` | `id` | 3FN |
+| `mtg_sets` | `id`, `code` | 3FN |
+| `mtg_cards` | `id` | Sin normalizar: copia de Scryfall |
+
+Dos decisiones de diseño evitan columnas que romperían la 3FN:
+
+- [El estado del préstamo sale de sus fechas](#el-estado-del-préstamo-sale-de-sus-fechas): una
+  columna de estado dependería de `accepted_at`, `returned_at` y `cancelled_at`.
+- [El idioma de la carta prestada lo fija la impresión](#el-idioma-de-la-carta-prestada-lo-fija-la-impresión):
+  una columna `lang` en las copias dependería de `card_id`.
+
+### `tcg_id` se repite a propósito
+
+En `decks`, `mtg_binder_cards` y `mtg_deck_cards`, `tcg_id` se puede deducir del binder o del
+mazo:
+
+- En `decks` depende de `binder_id`, que no es clave (`id → binder_id → tcg_id`). Rompe la 3FN.
+- En `mtg_binder_cards` y `mtg_deck_cards` depende solo de `binder_id` o de `deck_id`, una
+  parte de su clave. Rompe la 2FN.
+
+Se guarda porque es la única forma de que PostgreSQL compruebe, sin triggers, que un binder o
+un mazo solo tiene cartas de su juego (ver
+[La base de datos garantiza que un binder solo tiene cartas de su juego](#la-base-de-datos-garantiza-que-un-binder-solo-tiene-cartas-de-su-juego)).
+
+No causa las anomalías que evita la 3FN, porque nunca puede contradecir al binder:
+
+- La clave ajena compuesta obliga a que coincida con el `tcg_id` del binder o del mazo.
+- En las tablas `mtg_` vale siempre 1 (`CHECK (tcg_id = 1)`).
+- `binders.tcg_id` y `decks.tcg_id` no se pueden cambiar mientras un mazo o una carta apunte a
+  la fila, porque las claves ajenas compuestas lo impiden (`ON UPDATE NO ACTION`, la opción por
+  defecto).
+
+### El catálogo de Magic no se normaliza
+
+`mtg_cards` guarda cada impresión tal como la da Scryfall:
+
+- `finishes` es una lista de acabados. Rompe la 1FN.
+- `name`, `mana_cost` y `type_line` son del texto Oracle de la carta, que es el mismo en todas
+  sus impresiones e idiomas. Dependen de `oracle_id`, no de la impresión
+  (`id → oracle_id → name`). Rompe la 3FN.
+
+Se deja así porque es una copia de solo lectura de Scryfall. Solo la escribe el ETL, que
+reescribe cada fila entera con los datos de Scryfall, y la aplicación no la modifica nunca. La
+normalización evita que se cambie un dato en una fila y no en las demás que lo repiten, y aquí
+nadie cambia los datos a mano. Las tablas de los jugadores no se ven afectadas: apuntan a
+`mtg_cards.id`, que sí es la clave de la impresión.
+
+Tiene dos consecuencias:
+
+- **El texto Oracle puede ser distinto en cada expansión.** Una carga por expansión solo
+  reescribe las impresiones de esa expansión. Si Scryfall corrige el texto Oracle de una carta,
+  por ejemplo con un cambio de tipo de criatura, sus impresiones de otras expansiones conservan
+  el anterior hasta que se vuelvan a cargar con `--set` o `--completa`.
+- **El acabado de una copia lo comprueba la aplicación.** Como `finishes` es una lista, una
+  clave ajena no puede comprobar que el acabado de una copia existe en su impresión (ver
+  [Restricciones](#restricciones)).
+
 ## Decisiones de diseño
 
 ### Las tablas que apuntan a una carta son de cada TCG

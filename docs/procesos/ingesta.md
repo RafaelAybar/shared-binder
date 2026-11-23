@@ -47,7 +47,11 @@ python main.py --set fdn --set sld  # carga o refresca expansiones concretas
   descargar el bulk: consulta la lista de sets y carga, con la búsqueda de Scryfall, las
   expansiones oficiales que aún no están en la base de datos. También re-sincroniza las
   publicadas en los últimos `RESYNC_DAYS` días, porque Scryfall añade idiomas y promos
-  después de la salida. Cada expansión va en su propia transacción.
+  después de la salida. Cada expansión va en su propia transacción. Las impresiones de las
+  demás expansiones no se tocan: si Scryfall corrige el texto Oracle de una carta (`name`,
+  `mana_cost`, `type_line`), sus impresiones de otras expansiones lo reciben cuando se vuelven
+  a cargar con `--set` o `--completa` (ver
+  [El catálogo de Magic no se normaliza](../base-de-datos/diagrama-entidad-relacion.md#el-catálogo-de-magic-no-se-normaliza)).
 - **`--set CÓDIGO`**: carga o refresca expansiones concretas, por ejemplo las que reciben
   cartas durante mucho tiempo (Secret Lair, `sld`). Requiere haber hecho la carga inicial.
 

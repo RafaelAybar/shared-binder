@@ -5,10 +5,35 @@ Referencia: https://scryfall.com/docs/api
 """
 
 from datetime import date, datetime
-from typing import Any
+from typing import Annotated, Any, Final
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, HttpUrl
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    HttpUrl,
+)
+
+# Acabados en que puede existir una impresión (campo finishes de Scryfall). Son los valores
+# del tipo mtg_finish de esquema.sql, en el mismo orden (test_bd.py lo comprueba). Para
+# admitir uno nuevo, ver «Acabados» en docs/procesos/ingesta.md.
+ACABADOS: Final = ("nonfoil", "foil", "etched")
+
+
+def _ordenar_acabados(acabados: list[str]) -> list[str]:
+    """Sin repetidos y en el orden del tipo, con los desconocidos al final. Así, si Scryfall
+    envía los mismos acabados en otro orden, la carta no cuenta como cambiada."""
+
+    def posicion(acabado: str) -> tuple[int, str]:
+        return (
+            ACABADOS.index(acabado) if acabado in ACABADOS else len(ACABADOS),
+            acabado,
+        )
+
+    return sorted(set(acabados), key=posicion)
 
 
 class ModeloScryfall(BaseModel):
@@ -42,6 +67,15 @@ class CartaScryfall(ModeloScryfall):
     printed_name: str | None = None  # nombre impreso en el idioma de la carta
     rarity: str
     layout: str
+    # Normal, foil o etched: la impresión (y su id) es la misma en todos. Aquí se acepta
+    # cualquier lista, o ninguna (se toma como vacía), porque también llegan cartas que el
+    # ETL descarta (digitales, en preview...); etl.py comprueba error_acabados() solo en las
+    # que va a guardar.
+    finishes: Annotated[
+        list[str],
+        BeforeValidator(lambda valor: [] if valor is None else valor),
+        AfterValidator(_ordenar_acabados),
+    ] = Field(default_factory=list)
     mana_cost: str | None = None
     type_line: str | None = None
     released_at: date
@@ -72,6 +106,18 @@ class CartaScryfall(ModeloScryfall):
             return None
         return self._imagen_de_cara(1)
 
+    def error_acabados(self) -> str | None:
+        """Por qué no se pueden guardar los acabados, o None si se pueden. Una lista vacía
+        también es un error: no se podría registrar ninguna copia de la carta."""
+        if not self.finishes:
+            return "no tiene ningún acabado"
+        if desconocidos := [a for a in self.finishes if a not in ACABADOS]:
+            return (
+                f"acabado desconocido {', '.join(desconocidos)}; para admitirlo, ver "
+                "«Acabados» en docs/procesos/ingesta.md"
+            )
+        return None
+
     def _imagen_de_cara(self, indice: int) -> str | None:
         if not self.card_faces or len(self.card_faces) <= indice:
             return None
@@ -95,7 +141,11 @@ class SetScryfall(ModeloScryfall):
 
     def es_oficial(self, hoy: date) -> bool:
         """Oficial = se vende en papel (no es solo digital) y ya ha salido a la venta."""
-        return not self.digital and self.released_at is not None and self.released_at <= hoy
+        return (
+            not self.digital
+            and self.released_at is not None
+            and self.released_at <= hoy
+        )
 
 
 class ListaScryfall(ModeloScryfall):

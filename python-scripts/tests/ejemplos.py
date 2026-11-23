@@ -28,9 +28,27 @@ ID_RAYO = "00000000-0000-4000-b000-000000000003"
 _SETS = {
     "fdn": (ID_FDN, "Foundations", "core", "2024-11-15", False),
     "dsk": (ID_DSK, "Duskmourn: House of Horror", "expansion", "2024-09-27", False),
-    "dft": (ID_DFT, "Aetherdrift", "expansion", "2025-02-14", False),  # salió hace 15 días
-    "ydft": (ID_YDFT, "Alchemy: Aetherdrift", "alchemy", "2025-02-25", True),  # solo MTG Arena
-    "tdm": (ID_TDM, "Tarkir: Dragonstorm", "expansion", "2025-04-11", False),  # en preview
+    "dft": (
+        ID_DFT,
+        "Aetherdrift",
+        "expansion",
+        "2025-02-14",
+        False,
+    ),  # salió hace 15 días
+    "ydft": (
+        ID_YDFT,
+        "Alchemy: Aetherdrift",
+        "alchemy",
+        "2025-02-25",
+        True,
+    ),  # solo MTG Arena
+    "tdm": (
+        ID_TDM,
+        "Tarkir: Dragonstorm",
+        "expansion",
+        "2025-04-11",
+        False,
+    ),  # en preview
 }
 
 
@@ -74,7 +92,10 @@ def tres_cartas(id_set: str = ID_FDN) -> list[dict[str, Any]]:
         layout="normal",
         mana_cost="{G}",
         type_line="Creature — Elf Druid",
-        image_uris={"small": imagen(ID_LLANOWAR), "normal": "https://cards.scryfall.io/n.jpg"},
+        image_uris={
+            "small": imagen(ID_LLANOWAR),
+            "normal": "https://cards.scryfall.io/n.jpg",
+        },
     )
     # Dos caras físicas: no hay image_uris en la raíz, cada cara tiene la suya.
     delver = _carta(
@@ -114,6 +135,7 @@ def tres_cartas(id_set: str = ID_FDN) -> list[dict[str, Any]]:
         mana_cost="{R}",
         type_line="Instant",
         printed_type_line="Instantáneo",
+        finishes=["etched"],
         image_uris={"small": imagen(ID_RAYO)},
     )
     return [llanowar, delver, rayo]
@@ -126,6 +148,7 @@ def _carta(id_set: str, **campos: Any) -> dict[str, Any]:
         "lang": "en",
         "released_at": "2024-11-15",
         "digital": False,
+        "finishes": ["nonfoil", "foil"],
         "image_status": "highres_scan",
         "prices": {"eur": "0.10"},  # campo que el ETL no usa: debe ignorarse
     } | campos

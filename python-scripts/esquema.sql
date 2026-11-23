@@ -1,12 +1,21 @@
 -- Catálogo de Magic: The Gathering cargado desde Scryfall.
--- Lo ejecuta el ETL en cada arranque: todas las sentencias son idempotentes.
+-- Lo ejecutan el ETL en cada arranque y, cuando exista, la migración de Laravel que crea
+-- las tablas de los jugadores. Por eso todas las sentencias son idempotentes, y el fichero
+-- se ejecuta siempre dentro de una transacción (ver el bloqueo de abajo).
 -- Requiere PostgreSQL 19 o superior compilado con ICU.
 --
 -- Las columnas usan los nombres de los campos de Scryfall, y created_at/updated_at
 -- siguen la convención de Laravel para que un modelo Eloquent funcione sin configurar.
 --
--- IF NOT EXISTS no modifica tablas que ya existan: si cambias este fichero, borra las
--- tablas (DROP TABLE mtg_cards, mtg_sets) y deja que el ETL las recree y recargue.
+-- IF NOT EXISTS no modifica tablas que ya existan. Si falta alguna columna que carga el
+-- ETL, se detiene al arrancar y dice cuál. Cómo aplicar el cambio depende de si ya hay
+-- tablas de jugadores que apuntan al catálogo: ver «Tablas» en docs/procesos/ingesta.md.
+-- Nunca uses DROP TABLE ... CASCADE: borraría en silencio sus claves ajenas.
+
+-- Impide que dos procesos (el ETL y la migración de Laravel) apliquen el fichero a la vez:
+-- IF NOT EXISTS y el bloque DO del tipo no evitan que dos CREATE simultáneos choquen. El
+-- bloqueo se libera al terminar la transacción. El número es cualquiera, pero fijo.
+SELECT pg_advisory_xact_lock(5317420001);
 
 -- Orden natural de los números de colección: 1, 2, 2a, 10, 10a, 100 (con la colación
 -- por defecto sería 1, 10, 100, 2). Así el índice por set devuelve las cartas ya en el
@@ -16,6 +25,20 @@ CREATE COLLATION IF NOT EXISTS mtg_numero_coleccion (provider = icu, locale = 'u
 -- Búsqueda por trigramas: permite buscar cartas por cualquier trozo del nombre
 -- (name ILIKE '%bolt%') y por parecido (tolerante a erratas) usando índice.
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- Acabados en que existe una impresión, con los valores del campo finishes de Scryfall.
+-- Las tablas de Laravel lo usan también para el acabado de cada copia de un jugador.
+-- El bloque DO crea el tipo solo si no existe, así que cambiar la lista no afecta a las
+-- bases de datos que ya lo tienen. Para añadir un valor, deja la lista como está y añade
+-- debajo una línea ALTER TYPE mtg_finish ADD VALUE IF NOT EXISTS '...'; sirve para las
+-- bases de datos nuevas y para las existentes. Añádelo también al final de ACABADOS
+-- (modelos.py).
+DO $$
+BEGIN
+    CREATE TYPE mtg_finish AS ENUM ('nonfoil', 'foil', 'etched');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END
+$$;
 
 -- Notas de diseño:
 -- * Columnas de ancho fijo (uuid, timestamptz, date, integer) primero y texto al final:
@@ -48,6 +71,7 @@ CREATE TABLE IF NOT EXISTS mtg_cards (
     lang                 text        COLLATE "C" NOT NULL,
     rarity               text        COLLATE "C" NOT NULL,
     layout               text        COLLATE "C" NOT NULL,
+    finishes             mtg_finish[] NOT NULL CHECK (cardinality(finishes) > 0),  -- acabados en que existe
     name                 text        NOT NULL,     -- nombre en inglés (Oracle)
     printed_name         text,                     -- nombre impreso, en cartas no inglesas
     mana_cost            text,

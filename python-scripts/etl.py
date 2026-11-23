@@ -61,8 +61,14 @@ def hoy() -> date:
     return datetime.now(UTC).date()
 
 
-def es_carta_oficial(carta: CartaScryfall, sets_oficiales: dict[UUID, SetScryfall], dia: date) -> bool:
-    return carta.set_id in sets_oficiales and not carta.digital and carta.released_at <= dia
+def es_carta_oficial(
+    carta: CartaScryfall, sets_oficiales: dict[UUID, SetScryfall], dia: date
+) -> bool:
+    return (
+        carta.set_id in sets_oficiales
+        and not carta.digital
+        and carta.released_at <= dia
+    )
 
 
 # --- Modos de ejecución ------------------------------------------------------------
@@ -73,8 +79,12 @@ def carga_inicial(conn: psycopg.Connection, cliente: ClienteScryfall) -> Resumen
     resumen = Resumen()
     sets = _sets_oficiales(cliente, resumen)
     bulk = cliente.obtener_bulk(TIPO_BULK)
-    logger.info("Fichero bulk %s generado el %s", bulk.type, bulk.updated_at.isoformat())
-    ruta = cliente.descargar(str(bulk.jsonl_download_uri), bulk.compressed_size, DIRECTORIO_DESCARGAS)
+    logger.info(
+        "Fichero bulk %s generado el %s", bulk.type, bulk.updated_at.isoformat()
+    )
+    ruta = cliente.descargar(
+        str(bulk.jsonl_download_uri), bulk.compressed_size, DIRECTORIO_DESCARGAS
+    )
 
     _guardar(conn, _cartas_del_bulk(ruta, sets, resumen), sets, resumen)
 
@@ -92,20 +102,28 @@ def cargar_pendientes(conn: psycopg.Connection, cliente: ClienteScryfall) -> Res
     # Se compara el par (id, código): también se cargan los sets cuyo código ha cambiado y
     # los que Scryfall ha recreado con otro id. Estos últimos dan error en cada ejecución
     # hasta que se resuelvan, en vez de quedar olvidados.
-    nuevas = [s for s in sets.values() if (s.id, s.code) not in guardados and s.card_count > 0]
+    nuevas = [
+        s for s in sets.values() if (s.id, s.code) not in guardados and s.card_count > 0
+    ]
     recientes = [
-        s for s in sets.values() if (s.id, s.code) in guardados and s.released_at >= limite
+        s
+        for s in sets.values()
+        if (s.id, s.code) in guardados and s.released_at >= limite
     ]
     logger.info(
         "%d expansiones nuevas y %d publicadas en los últimos %d días por re-sincronizar",
-        len(nuevas), len(recientes), DIAS_RESINCRONIZACION,
+        len(nuevas),
+        len(recientes),
+        DIAS_RESINCRONIZACION,
     )
     for set_ in sorted(nuevas + recientes, key=lambda s: (s.released_at, s.code)):
         _cargar_expansion_aislada(conn, cliente, set_, resumen)
     return resumen
 
 
-def cargar_sets(conn: psycopg.Connection, cliente: ClienteScryfall, codigos: Iterable[str]) -> Resumen:
+def cargar_sets(
+    conn: psycopg.Connection, cliente: ClienteScryfall, codigos: Iterable[str]
+) -> Resumen:
     """Carga o refresca las expansiones indicadas por código (p. ej. fdn, sld)."""
     resumen = Resumen()
     dia = hoy()
@@ -123,7 +141,9 @@ def cargar_sets(conn: psycopg.Connection, cliente: ClienteScryfall, codigos: Ite
         if not set_.es_oficial(dia):
             logger.error(
                 "La expansión %s no es una publicación oficial (digital=%s, salida=%s); se omite",
-                set_.code, set_.digital, set_.released_at,
+                set_.code,
+                set_.digital,
+                set_.released_at,
             )
             resumen.errores += 1
             continue
@@ -134,7 +154,9 @@ def cargar_sets(conn: psycopg.Connection, cliente: ClienteScryfall, codigos: Ite
 # --- Pasos comunes -----------------------------------------------------------------
 
 
-def _sets_oficiales(cliente: ClienteScryfall, resumen: Resumen) -> dict[UUID, SetScryfall]:
+def _sets_oficiales(
+    cliente: ClienteScryfall, resumen: Resumen
+) -> dict[UUID, SetScryfall]:
     dia = hoy()
     sets: dict[UUID, SetScryfall] = {}
     total = 0
@@ -143,7 +165,9 @@ def _sets_oficiales(cliente: ClienteScryfall, resumen: Resumen) -> dict[UUID, Se
         set_ = _validar(SetScryfall, dato, f"Set {dato.get('code')!r}", resumen)
         if set_ is not None and set_.es_oficial(dia):
             sets[set_.id] = set_
-    logger.info("%d de %d sets de Scryfall son oficiales y ya han salido", len(sets), total)
+    logger.info(
+        "%d de %d sets de Scryfall son oficiales y ya han salido", len(sets), total
+    )
     return sets
 
 
@@ -158,20 +182,27 @@ def _cartas_del_bulk(
                 logger.info("Procesadas %d líneas del fichero bulk", numero)
             if not linea.strip():
                 continue
-            carta = _validar(CartaScryfall, linea, f"Línea {numero} del fichero bulk", resumen)
+            contexto = f"Línea {numero} del fichero bulk"
+            carta = _validar(CartaScryfall, linea, contexto, resumen)
             if carta is None:
                 continue
             if not es_carta_oficial(carta, sets, dia):
                 resumen.descartadas += 1
                 continue
-            yield carta
+            if _acabados_correctos(carta, contexto, resumen):
+                yield carta
 
 
 def _cargar_expansion_aislada(
-    conn: psycopg.Connection, cliente: ClienteScryfall, set_: SetScryfall, resumen: Resumen
+    conn: psycopg.Connection,
+    cliente: ClienteScryfall,
+    set_: SetScryfall,
+    resumen: Resumen,
 ) -> None:
     """Carga una expansión en su propia transacción; si falla, sigue con las demás."""
-    logger.info("Cargando expansión %s (%s, %s)", set_.code, set_.name, set_.released_at)
+    logger.info(
+        "Cargando expansión %s (%s, %s)", set_.code, set_.name, set_.released_at
+    )
     try:
         cartas = _cartas_de_expansion(cliente, set_, resumen)
         if not cartas:
@@ -182,7 +213,9 @@ def _cargar_expansion_aislada(
             return
         _guardar(conn, cartas, {set_.id: set_}, resumen)
     except ERRORES_EXPANSION:
-        logger.exception("Error cargando la expansión %s; no se ha guardado nada de ella", set_.code)
+        logger.exception(
+            "Error cargando la expansión %s; no se ha guardado nada de ella", set_.code
+        )
         resumen.errores += 1
 
 
@@ -195,13 +228,15 @@ def _cartas_de_expansion(
     sets = {set_.id: set_}
     cartas = []
     for dato in cliente.cartas_de_set(set_):
-        carta = _validar(CartaScryfall, dato, f"Carta {dato.get('id')} de {set_.code}", resumen)
+        contexto = f"Carta {dato.get('id')} de {set_.code}"
+        carta = _validar(CartaScryfall, dato, contexto, resumen)
         if carta is None:
             continue
         if not es_carta_oficial(carta, sets, dia):
             resumen.descartadas += 1
             continue
-        cartas.append(carta)
+        if _acabados_correctos(carta, contexto, resumen):
+            cartas.append(carta)
     return cartas
 
 
@@ -232,7 +267,9 @@ def _guardar(
                 yield carta
 
         bd.copiar_a_temporal(conn, filtrar(cartas))
-        bd.upsert_sets(conn, (sets[i] for i in vistos))  # antes que las cartas (clave ajena)
+        bd.upsert_sets(
+            conn, (sets[i] for i in vistos)
+        )  # antes que las cartas (clave ajena)
         fusion = bd.fusionar_cartas(conn)
 
     for id_set, cantidad in omitidas.items():
@@ -241,7 +278,12 @@ def _guardar(
             "No se guarda la expansión %s (%s) ni sus %d cartas: Scryfall le ha dado el id %s, "
             "pero el código ya pertenece al set %s de la base de datos. Revisa a mano cuál "
             "sobra y vuelve a cargarla con --set %s",
-            set_.code, set_.name, cantidad, set_.id, ocupados[id_set], set_.code,
+            set_.code,
+            set_.name,
+            cantidad,
+            set_.id,
+            ocupados[id_set],
+            set_.code,
         )
     if fusion.duplicadas:
         logger.warning(
@@ -255,20 +297,39 @@ def _guardar(
     resumen.errores += len(omitidas)
     logger.info(
         "Guardados %d sets: %d cartas nuevas y %d actualizadas",
-        len(vistos), fusion.insertadas, fusion.actualizadas,
+        len(vistos),
+        fusion.insertadas,
+        fusion.actualizadas,
     )
 
 
-def _validar[M: BaseModel](modelo: type[M], dato: Any, contexto: str, resumen: Resumen) -> M | None:
+def _validar[M: BaseModel](
+    modelo: type[M], dato: Any, contexto: str, resumen: Resumen
+) -> M | None:
     """Valida un registro; si no es correcto lo registra en el log y devuelve None."""
     try:
         if isinstance(dato, (bytes, str)):
             return modelo.model_validate_json(dato)
         return modelo.model_validate(dato)
     except ValidationError as error:
-        resumen.invalidas += 1
         detalle = "; ".join(
-            f"{'.'.join(map(str, e['loc'])) or '(raíz)'}: {e['msg']}" for e in error.errors()
+            f"{'.'.join(map(str, e['loc'])) or '(raíz)'}: {e['msg']}"
+            for e in error.errors()
         )
-        logger.error("%s no es válido y se descarta: %s", contexto, detalle)
+        _descartar_invalido(contexto, detalle, resumen)
         return None
+
+
+def _acabados_correctos(carta: CartaScryfall, contexto: str, resumen: Resumen) -> bool:
+    """Los acabados solo se comprueban en las cartas que se van a guardar. Así, un acabado
+    nuevo que Scryfall solo use en cartas digitales no es un error: se descartan igual.
+    """
+    if error := carta.error_acabados():
+        _descartar_invalido(contexto, f"finishes: {error}", resumen)
+        return False
+    return True
+
+
+def _descartar_invalido(contexto: str, detalle: str, resumen: Resumen) -> None:
+    resumen.invalidas += 1
+    logger.error("%s no es válido y se descarta: %s", contexto, detalle)

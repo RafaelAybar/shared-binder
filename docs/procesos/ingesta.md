@@ -84,6 +84,28 @@ Solo se guarda la URL de la imagen en tamaño *small* (146×204) servida por Scr
 `image_small_url` (cara frontal o única) e `image_small_back_url` (cara trasera de las
 cartas de dos caras). No se descarga ninguna imagen.
 
+### Acabados
+
+`mtg_cards.finishes` guarda el campo `finishes` de Scryfall: los acabados en que existe la
+impresión, entre `nonfoil`, `foil` y `etched` (tipo `mtg_finish[]`). Scryfall usa el mismo
+`id` para todos los acabados de una impresión, así que la aplicación lo necesita para saber
+si una copia puede ser foil.
+
+Se guardan sin repetidos y siempre en el mismo orden, para que la misma lista en otro orden no
+cuente como un cambio de la carta.
+
+Una carta que se va a guardar y no tiene acabados, o tiene uno fuera de esa lista, se descarta
+con nivel ERROR. En las cartas que se descartan de todas formas (digitales, en preview o de
+sets no oficiales) no se comprueban, así que un acabado nuevo que solo tengan esas cartas no
+es un error. Para admitir un acabado nuevo:
+
+1. Añádelo al final de `ACABADOS`, en `modelos.py`.
+2. Añade en `esquema.sql`, debajo del tipo, la línea
+   `ALTER TYPE mtg_finish ADD VALUE IF NOT EXISTS '…';`. Lo añade tanto en las bases de datos
+   nuevas como en las que ya existen. Si falta esta línea, el ETL se detiene al arrancar y lo
+   indica.
+3. Vuelve a cargar las expansiones afectadas con `--set CÓDIGO`, o todas con `--completa`.
+
 ### Política de uso de Scryfall
 
 Todas las peticiones envían `User-Agent: SharedBinder-ETL/<versión>` y
@@ -101,6 +123,25 @@ El ETL crea las tablas al arrancar si no existen (`python-scripts/esquema.sql`):
 
 - `mtg_sets`: expansiones oficiales cargadas.
 - `mtg_cards`: una fila por impresión e idioma (`id` de Scryfall), con clave ajena a `mtg_sets`.
+
+Crea también el tipo `mtg_finish`, que usan `mtg_cards` y las tablas de los jugadores.
+
+Si una tabla ya existe pero le faltan columnas, porque se creó con una versión anterior de
+`esquema.sql`, el ETL se detiene al arrancar con un error que dice cuáles. Cómo actualizarla
+depende de si ya hay tablas de los jugadores que apuntan al catálogo (`mtg_binder_cards`,
+`mtg_deck_cards` o `mtg_loan_cards`):
+
+- **Si no las hay**: borra las tablas (`DROP TABLE mtg_cards, mtg_sets`) y vuelve a ejecutar
+  el ETL, que las recreará y hará la carga inicial.
+- **Si las hay**: sus claves ajenas impiden borrarlas. Añade cada columna con
+  `ALTER TABLE … ADD COLUMN`, sin `NOT NULL`, y rellénala con `python main.py --completa`.
+  Después, añade con `ALTER TABLE` el `NOT NULL` y los `CHECK` que tenga en `esquema.sql`.
+
+Nunca uses `DROP TABLE … CASCADE`: borraría en silencio las claves ajenas de las tablas de los
+jugadores.
+
+El ETL también se detiene al arrancar si `ACABADOS` tiene un valor que falta en el tipo
+`mtg_finish` (ver [Acabados](#acabados)).
 
 ### Variables de entorno
 

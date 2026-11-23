@@ -4,10 +4,20 @@ from typing import Any
 
 import pytest
 
-from ejemplos import HOY, ID_DELVER, ID_LLANOWAR, ID_RAYO, imagen, set_scryfall, tres_cartas
+from ejemplos import (
+    HOY,
+    ID_DELVER,
+    ID_LLANOWAR,
+    ID_RAYO,
+    imagen,
+    set_scryfall,
+    tres_cartas,
+)
 from modelos import CartaScryfall, SetScryfall
 
-PENDIENTE = "https://cards.scryfall.io/small/front/soon.webp"  # imagen genérica de Scryfall
+PENDIENTE = (
+    "https://cards.scryfall.io/small/front/soon.webp"  # imagen genérica de Scryfall
+)
 
 
 def validar(datos: list[dict[str, Any]]) -> list[CartaScryfall]:
@@ -17,7 +27,10 @@ def validar(datos: list[dict[str, Any]]) -> list[CartaScryfall]:
 def test_imagen_small_de_las_tres_cartas() -> None:
     llanowar, delver, rayo = validar(tres_cartas())
 
-    assert (llanowar.imagen_small, llanowar.imagen_small_trasera) == (imagen(ID_LLANOWAR), None)
+    assert (llanowar.imagen_small, llanowar.imagen_small_trasera) == (
+        imagen(ID_LLANOWAR),
+        None,
+    )
     assert (delver.imagen_small, delver.imagen_small_trasera) == (
         imagen(ID_DELVER),
         imagen(ID_DELVER, "back"),
@@ -33,14 +46,17 @@ def test_cartas_con_dos_caras_en_el_mismo_lado_no_tienen_imagen_trasera() -> Non
         ("flip", "Akki Lavarunner", "Tok-Tok, Volcano Born"),
     ]
     cartas = [
-        carta | {
+        carta
+        | {
             "layout": layout,
             "name": f"{cara} // {otra}",
             "card_faces": [{"name": cara}, {"name": otra}],
         }
         for carta, (layout, cara, otra) in zip(tres_cartas(), formatos, strict=True)
     ]
-    cartas[1]["image_uris"] = {"small": imagen(ID_DELVER)}  # la de dos caras no la tenía
+    cartas[1]["image_uris"] = {
+        "small": imagen(ID_DELVER)
+    }  # la de dos caras no la tenía
 
     for carta in validar(cartas):
         assert carta.imagen_small == imagen(str(carta.id))
@@ -61,6 +77,15 @@ def test_imagen_aun_no_escaneada_se_guarda_vacia() -> None:
         assert (carta.imagen_small, carta.imagen_small_trasera) == (None, None)
 
 
+def test_acabados_sin_repetir_y_siempre_en_el_mismo_orden() -> None:
+    """Así, los mismos acabados en otro orden no cuentan como un cambio de la carta."""
+    conocidos = tres_cartas()[0] | {"finishes": ["etched", "nonfoil", "etched"]}
+    con_uno_nuevo = tres_cartas()[0] | {"finishes": ["holo", "foil"]}
+
+    assert CartaScryfall.model_validate(conocidos).finishes == ["nonfoil", "etched"]
+    assert CartaScryfall.model_validate(con_uno_nuevo).finishes == ["foil", "holo"]
+
+
 def test_campos_nuevos_de_scryfall_se_ignoran() -> None:
     cartas = [c | {"campo_nuevo": {"anadido": "2025-03-01"}} for c in tres_cartas()]
 
@@ -73,7 +98,9 @@ def test_campos_nuevos_de_scryfall_se_ignoran() -> None:
         pytest.param(set_scryfall("fdn"), True, id="en papel y publicado"),
         pytest.param(set_scryfall("ydft"), False, id="solo digital"),
         pytest.param(set_scryfall("tdm"), False, id="en preview"),
-        pytest.param(set_scryfall("fdn", released_at=None), False, id="sin fecha de salida"),
+        pytest.param(
+            set_scryfall("fdn", released_at=None), False, id="sin fecha de salida"
+        ),
     ],
 )
 def test_set_oficial(dato: dict[str, Any], oficial: bool) -> None:

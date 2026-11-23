@@ -41,6 +41,10 @@ return [
             'prefix_indexes' => true,
             'search_path' => env('DB_SEARCH_PATH', 'public'),
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // La misma zona que app.timezone. Laravel envía las fechas sin zona horaria y
+            // PostgreSQL las interpreta en la de la sesión: sin esto, en un servidor con otra
+            // zona por defecto, las columnas timestamptz guardarían la hora desplazada.
+            'timezone' => 'UTC',
         ],
 
     ],

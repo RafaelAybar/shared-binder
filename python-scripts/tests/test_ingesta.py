@@ -54,20 +54,37 @@ ERRORES_DE_FORMATO = [
     pytest.param(lambda c: c.pop("id"), "id", id="falta el id"),
     pytest.param(lambda c: c.pop("name"), "name", id="falta el nombre"),
     pytest.param(lambda c: c.pop("released_at"), "released_at", id="falta la fecha"),
-    pytest.param(lambda c: c.update(id="no-es-un-uuid"), "id", id="id que no es un UUID"),
     pytest.param(
-        lambda c: c.update(released_at="15/11/2024"), "released_at", id="fecha con otro formato"
+        lambda c: c.update(id="no-es-un-uuid"), "id", id="id que no es un UUID"
     ),
-    pytest.param(lambda c: c.update(digital="quizás"), "digital", id="booleano no válido"),
     pytest.param(
-        lambda c: c.update(collector_number=None), "collector_number", id="número de colección nulo"
+        lambda c: c.update(released_at="15/11/2024"),
+        "released_at",
+        id="fecha con otro formato",
+    ),
+    pytest.param(
+        lambda c: c.update(digital="quizás"), "digital", id="booleano no válido"
+    ),
+    pytest.param(
+        lambda c: c.update(collector_number=None),
+        "collector_number",
+        id="número de colección nulo",
     ),
     pytest.param(
         lambda c: c["card_faces"][1].update(image_uris={"small": "no es una URL"}),
         "card_faces.1.image_uris.small",
         id="URL de imagen no válida",
     ),
-    pytest.param(lambda c: c.update(card_faces="Delver"), "card_faces", id="caras que no son una lista"),
+    pytest.param(
+        lambda c: c.update(card_faces="Delver"),
+        "card_faces",
+        id="caras que no son una lista",
+    ),
+    pytest.param(
+        lambda c: c.update(finishes=["nonfoil", "glossy"]),
+        "finishes",
+        id="acabado desconocido",
+    ),
 ]
 
 
@@ -107,7 +124,9 @@ def test_linea_cortada_del_bulk_se_descarta_con_su_numero(
 def test_lineas_en_blanco_del_bulk_se_ignoran(bd_falsa: BDFalsa, tmp_path) -> None:
     llanowar, delver, rayo = lineas_bulk(tres_cartas())
     cliente = ClienteFalso(
-        [set_scryfall("fdn")], bulk=[llanowar, "", delver, "   ", rayo], directorio=tmp_path
+        [set_scryfall("fdn")],
+        bulk=[llanowar, "", delver, "   ", rayo],
+        directorio=tmp_path,
     )
 
     resumen = etl.carga_inicial(bd_falsa, cliente)
@@ -119,17 +138,66 @@ def test_lineas_en_blanco_del_bulk_se_ignoran(bd_falsa: BDFalsa, tmp_path) -> No
 # --- Publicaciones oficiales -------------------------------------------------------
 
 
-def test_solo_se_guardan_cartas_en_papel_ya_publicadas(bd_falsa: BDFalsa, tmp_path) -> None:
+def test_solo_se_guardan_cartas_en_papel_ya_publicadas(
+    bd_falsa: BDFalsa, tmp_path
+) -> None:
     cartas = tres_cartas()
     cartas[0]["digital"] = True  # versión solo para MTG Arena
     cartas[1]["released_at"] = "2025-04-11"  # preview: aún no ha salido
-    cliente = ClienteFalso([set_scryfall("fdn")], bulk=lineas_bulk(cartas), directorio=tmp_path)
+    cliente = ClienteFalso(
+        [set_scryfall("fdn")], bulk=lineas_bulk(cartas), directorio=tmp_path
+    )
 
     resumen = etl.carga_inicial(bd_falsa, cliente)
 
     assert ids(bd_falsa.cartas) == [ID_RAYO]
     assert resumen.descartadas == 2
     assert resumen.correcto  # descartar no es un error
+
+
+@pytest.mark.parametrize(
+    ("romper", "motivo"),
+    [
+        pytest.param(
+            lambda c: c.update(finishes=["holo"]),
+            "acabado desconocido holo",
+            id="desconocido",
+        ),
+        pytest.param(
+            lambda c: c.update(finishes=[]), "no tiene ningún acabado", id="lista vacía"
+        ),
+        pytest.param(
+            lambda c: c.update(finishes=None), "no tiene ningún acabado", id="nulo"
+        ),
+        pytest.param(
+            lambda c: c.pop("finishes"), "no tiene ningún acabado", id="sin el campo"
+        ),
+    ],
+)
+def test_acabados_incorrectos_solo_son_error_en_las_cartas_que_se_guardan(
+    romper: Rotura,
+    motivo: str,
+    bd_falsa: BDFalsa,
+    caplog: pytest.LogCaptureFixture,
+    tmp_path,
+) -> None:
+    """Si Scryfall estrena un acabado, o deja de enviarlos, en cartas digitales, estas se
+    descartan como siempre, sin contar como error."""
+    cartas = tres_cartas()
+    cartas[0]["digital"] = True
+    romper(cartas[0])
+    romper(cartas[1])
+    cliente = ClienteFalso(
+        [set_scryfall("fdn")], bulk=lineas_bulk(cartas), directorio=tmp_path
+    )
+
+    resumen = etl.carga_inicial(bd_falsa, cliente)
+
+    assert ids(bd_falsa.cartas) == [ID_RAYO]
+    assert (resumen.descartadas, resumen.invalidas) == (1, 1)
+    [error] = mensajes(caplog, logging.ERROR)
+    assert error.startswith("Línea 2 del fichero bulk no es válido")
+    assert f"finishes: {motivo}" in error
 
 
 def test_cartas_de_sets_no_oficiales_se_descartan(bd_falsa: BDFalsa, tmp_path) -> None:
@@ -149,7 +217,9 @@ def test_cartas_de_sets_no_oficiales_se_descartan(bd_falsa: BDFalsa, tmp_path) -
 def test_set_sin_cartas_no_se_guarda(bd_falsa: BDFalsa, tmp_path) -> None:
     """Así, un set publicado sin cartas en el bulk se vuelve a intentar más adelante."""
     sets = [set_scryfall("fdn"), set_scryfall("dsk")]
-    cliente = ClienteFalso(sets, bulk=lineas_bulk(tres_cartas(ID_FDN)), directorio=tmp_path)
+    cliente = ClienteFalso(
+        sets, bulk=lineas_bulk(tres_cartas(ID_FDN)), directorio=tmp_path
+    )
 
     resumen = etl.carga_inicial(bd_falsa, cliente)
 
@@ -167,7 +237,9 @@ def test_carta_repetida_llega_en_orden_a_la_bd_y_se_avisa(
     pasa ambas copias en el orden recibido: PostgreSQL se queda con la última (test_bd.py
     lo comprueba) y el ETL informa de cuántas había."""
     llanowar, delver, _ = tres_cartas()
-    repetida = llanowar | {"image_uris": {"small": imagen(ID_LLANOWAR, version=1740000000)}}
+    repetida = llanowar | {
+        "image_uris": {"small": imagen(ID_LLANOWAR, version=1740000000)}
+    }
     cliente = ClienteFalso([set_scryfall("fdn")], {"fdn": [llanowar, delver, repetida]})
     bd_falsa.resultado = ResultadoFusion(insertadas=2, actualizadas=0, duplicadas=1)
 
@@ -202,7 +274,9 @@ def test_set_recreado_con_otro_id_se_omite_sin_bloquear_el_resto(
         assert texto in error
 
 
-def test_set_recreado_da_error_en_cada_ejecucion_hasta_resolverlo(bd_falsa: BDFalsa) -> None:
+def test_set_recreado_da_error_en_cada_ejecucion_hasta_resolverlo(
+    bd_falsa: BDFalsa,
+) -> None:
     bd_falsa.guardados = {(UUID(ID_FDN_ANTIGUO), "fdn")}
     cliente = ClienteFalso([set_scryfall("fdn")], {"fdn": tres_cartas()})
 
@@ -214,7 +288,9 @@ def test_set_recreado_da_error_en_cada_ejecucion_hasta_resolverlo(bd_falsa: BDFa
     assert bd_falsa.cartas == []
 
 
-def test_set_que_cambia_de_codigo_se_actualiza_aunque_sea_antiguo(bd_falsa: BDFalsa) -> None:
+def test_set_que_cambia_de_codigo_se_actualiza_aunque_sea_antiguo(
+    bd_falsa: BDFalsa,
+) -> None:
     bd_falsa.guardados = {(UUID(ID_FDN), "fd1")}  # mismo id, código anterior
     cliente = ClienteFalso([set_scryfall("fdn")], {"fdn": tres_cartas()})
 
@@ -247,7 +323,10 @@ def test_cargar_pendientes_pide_las_nuevas_y_las_recientes(bd_falsa: BDFalsa) ->
 @pytest.mark.parametrize(
     "fallo",
     [
-        pytest.param({"bd": psycopg.OperationalError("se ha perdido la conexión")}, id="PostgreSQL"),
+        pytest.param(
+            {"bd": psycopg.OperationalError("se ha perdido la conexión")},
+            id="PostgreSQL",
+        ),
         pytest.param({"scryfall": ErrorScryfall("HTTP 503")}, id="Scryfall"),
     ],
 )
@@ -275,7 +354,9 @@ def test_un_error_en_una_expansion_no_detiene_las_demas(
 def test_expansion_aun_sin_cartas_no_se_guarda_ni_es_error(
     bd_falsa: BDFalsa, caplog: pytest.LogCaptureFixture
 ) -> None:
-    cliente = ClienteFalso([set_scryfall("fdn")], {"fdn": []})  # la búsqueda responde 404
+    cliente = ClienteFalso(
+        [set_scryfall("fdn")], {"fdn": []}
+    )  # la búsqueda responde 404
 
     resumen = etl.cargar_sets(bd_falsa, cliente, ["fdn"])
 
@@ -284,7 +365,9 @@ def test_expansion_aun_sin_cartas_no_se_guarda_ni_es_error(
     assert any("se reintentará" in m for m in mensajes(caplog, logging.WARNING))
 
 
-def test_cargar_sets_rechaza_codigos_inexistentes_y_no_oficiales(bd_falsa: BDFalsa) -> None:
+def test_cargar_sets_rechaza_codigos_inexistentes_y_no_oficiales(
+    bd_falsa: BDFalsa,
+) -> None:
     sets = [set_scryfall("fdn"), set_scryfall("ydft"), set_scryfall("tdm")]
     cliente = ClienteFalso(sets, {"fdn": tres_cartas()})
 
@@ -298,18 +381,28 @@ def test_cargar_sets_rechaza_codigos_inexistentes_y_no_oficiales(bd_falsa: BDFal
 # --- Fichero bulk y resultado ------------------------------------------------------
 
 
-def test_carga_inicial_borra_el_fichero_al_terminar(bd_falsa: BDFalsa, tmp_path) -> None:
-    cliente = ClienteFalso([set_scryfall("fdn")], bulk=lineas_bulk(tres_cartas()), directorio=tmp_path)
+def test_carga_inicial_borra_el_fichero_al_terminar(
+    bd_falsa: BDFalsa, tmp_path
+) -> None:
+    cliente = ClienteFalso(
+        [set_scryfall("fdn")], bulk=lineas_bulk(tres_cartas()), directorio=tmp_path
+    )
 
     etl.carga_inicial(bd_falsa, cliente)
 
     assert cliente.ruta_bulk is not None and not cliente.ruta_bulk.exists()
 
 
-def test_si_la_carga_inicial_falla_se_conserva_el_fichero(bd_falsa: BDFalsa, tmp_path) -> None:
+def test_si_la_carga_inicial_falla_se_conserva_el_fichero(
+    bd_falsa: BDFalsa, tmp_path
+) -> None:
     """La siguiente ejecución lo reutiliza en vez de volver a descargar ~400 MB."""
-    bd_falsa.fallos[UUID(ID_FDN)] = psycopg.OperationalError("se ha perdido la conexión")
-    cliente = ClienteFalso([set_scryfall("fdn")], bulk=lineas_bulk(tres_cartas()), directorio=tmp_path)
+    bd_falsa.fallos[UUID(ID_FDN)] = psycopg.OperationalError(
+        "se ha perdido la conexión"
+    )
+    cliente = ClienteFalso(
+        [set_scryfall("fdn")], bulk=lineas_bulk(tres_cartas()), directorio=tmp_path
+    )
 
     with pytest.raises(psycopg.OperationalError):
         etl.carga_inicial(bd_falsa, cliente)
@@ -322,10 +415,14 @@ def test_si_la_carga_inicial_falla_se_conserva_el_fichero(bd_falsa: BDFalsa, tmp
     ("resumen", "correcto"),
     [
         pytest.param(etl.Resumen(insertadas=3), True, id="todo bien"),
-        pytest.param(etl.Resumen(descartadas=2, duplicadas=1), True, id="descartes y repetidas"),
+        pytest.param(
+            etl.Resumen(descartadas=2, duplicadas=1), True, id="descartes y repetidas"
+        ),
         pytest.param(etl.Resumen(invalidas=1), False, id="registro inválido"),
         pytest.param(etl.Resumen(errores=1), False, id="expansión fallida"),
     ],
 )
-def test_codigo_de_salida_segun_el_resumen(resumen: etl.Resumen, correcto: bool) -> None:
+def test_codigo_de_salida_segun_el_resumen(
+    resumen: etl.Resumen, correcto: bool
+) -> None:
     assert resumen.correcto is correcto

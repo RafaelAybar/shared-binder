@@ -128,3 +128,4 @@ venv/
 /python-scripts/descargas/
 __pycache__/
 .pytest_cache/
+backlog.md

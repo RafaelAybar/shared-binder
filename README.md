@@ -6,6 +6,7 @@ Shared-Binder es una aplicación web que permite tanto gestionar colecciones de 
 
 > **Advertencia**: El objetivo de Shared Binder no es otro que hacer de testigo, no mediar de forma activa entre jugadores
 > ni tiene per se validez jurídica. Es un pacto entre dos personas firmado por ellas, y shared binder es un testigo imparcial.
+> Cada jugador firma aprobando un correo (firma electrónica simple), y shared binder sella el documento como testigo.
 
 ## Funcionalidad
 
@@ -18,8 +19,9 @@ Esta web permite a jugadores gestionar la collección de cartas de múltiples ju
 * One Piece
 * Pokémon
 
-Además permite a los usuarios gestionar préstamos entre ellos, generando un PDF que contiene:
-Nombre y apellidos de cada jugador, usuario del jugador (opcional) así como estado de la carta y fotos de la misma.
+Además permite a los usuarios gestionar préstamos entre ellos, generando dos PDF que firman los dos jugadores, uno al prestar
+y otro al devolver. Contienen: nombre y apellidos de cada jugador, su ID de jugador en el juego (opcional, por ejemplo el COSSY ID
+de Yu-Gi-Oh!), así como el estado de cada carta y fotos de sus dos caras.
 
 El criterio con el que se dictamina el estado de una carta se corresponde a la [guía de condiciones de una carta de Cardmarket](https://help.cardmarket.com/en/CardCondition)
 

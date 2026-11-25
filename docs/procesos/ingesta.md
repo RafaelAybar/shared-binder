@@ -132,8 +132,8 @@ Crea también el tipo `mtg_finish`, que usan `mtg_cards` y las tablas de los jug
 
 Si una tabla ya existe pero le faltan columnas, porque se creó con una versión anterior de
 `esquema.sql`, el ETL se detiene al arrancar con un error que dice cuáles. Cómo actualizarla
-depende de si ya hay tablas de los jugadores que apuntan al catálogo (`mtg_binder_cards`,
-`mtg_deck_cards` o `mtg_loan_cards`):
+depende de si ya hay tablas de los jugadores que apuntan al catálogo (`mtg_cartas_carpeta`,
+`mtg_cartas_mazo` o `mtg_cartas_prestamo`):
 
 - **Si no las hay**: borra las tablas (`DROP TABLE mtg_cards, mtg_sets`) y vuelve a ejecutar
   el ETL, que las recreará y hará la carga inicial.

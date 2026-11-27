@@ -1,0 +1,53 @@
+name: sonarqube
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'shared-binder/**'
+      - 'python-scripts/**'
+      - 'backend.Dockerfile'
+      - 'docker-compose.yaml'
+      - 'sonar-project.properties'
+      - '.github/workflows/sonarqube.yml'
+  pull_request:
+    paths:
+      - 'shared-binder/**'
+      - 'python-scripts/**'
+      - 'backend.Dockerfile'
+      - 'docker-compose.yaml'
+      - 'sonar-project.properties'
+      - '.github/workflows/sonarqube.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  sonarqube:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Con el historial completo, SonarQube Cloud sabe qué líneas son código nuevo.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Solo análisis estático: no hace falta instalar PHP, Python ni las dependencias de
+      # Composer. Las de npm sí: con ellas SonarQube conoce los tipos de las librerías que
+      # importa el TypeScript.
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+
+      - name: Install frontend dependencies
+        working-directory: shared-binder
+        run: npm ci --ignore-scripts
+
+      - name: SonarQube Cloud Scan
+        uses: SonarSource/sonarqube-scan-action@70bad232163b09d998ea0707ee80c0ec80798c16 # v8.5.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -390,7 +390,8 @@ def test_carga_inicial_borra_el_fichero_al_terminar(
 
     etl.carga_inicial(bd_falsa, cliente)
 
-    assert cliente.ruta_bulk is not None and not cliente.ruta_bulk.exists()
+    assert cliente.ruta_bulk is not None
+    assert not cliente.ruta_bulk.exists()
 
 
 def test_si_la_carga_inicial_falla_se_conserva_el_fichero(
@@ -407,7 +408,8 @@ def test_si_la_carga_inicial_falla_se_conserva_el_fichero(
     with pytest.raises(psycopg.OperationalError):
         etl.carga_inicial(bd_falsa, cliente)
 
-    assert cliente.ruta_bulk is not None and cliente.ruta_bulk.exists()
+    assert cliente.ruta_bulk is not None
+    assert cliente.ruta_bulk.exists()
     assert bd_falsa.cartas == []
 
 

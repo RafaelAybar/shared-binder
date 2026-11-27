@@ -15,28 +15,32 @@ beforeEach(function () {
         ['id' => $fdn, 'code' => 'fdn', 'name' => 'Foundations', 'set_type' => 'core', 'released_at' => '2024-11-15', 'card_count' => 730],
     ]);
 
-    $card = fn (string $set, string $number, string $name, string $type, string $rarity, int $cmc, string $lang = 'en', ?string $printedName = null) => [
+    $card = fn (string $set, string $number, string $name, string $type, string $rarity, int $cmc) => [
         'id' => (string) Str::uuid(),
         'set_id' => $set,
         'released_at' => '2024-11-15',
         'collector_number' => $number,
-        'lang' => $lang,
+        'lang' => 'en',
         'name' => $name,
-        'printed_name' => $printedName,
+        'printed_name' => null,
         'rarity' => $rarity,
         'layout' => 'normal',
         'finishes' => '{nonfoil}',
         'type_line' => $type,
         'cmc' => $cmc,
     ];
+    $inSpanish = fn (array $card, string $printedName) => [...$card, 'id' => (string) Str::uuid(), 'lang' => 'es', 'printed_name' => $printedName];
+
+    $bolt = $card(set: $lea, number: '161', name: 'Lightning Bolt', type: 'Instant', rarity: 'common', cmc: 1);
+    $elves = $card(set: $fdn, number: '227', name: 'Llanowar Elves', type: 'Creature — Elf Druid', rarity: 'common', cmc: 1);
 
     DB::table('mtg_cards')->insert([
         $card(set: $lea, number: '232', name: 'Black Lotus', type: 'Artifact', rarity: 'rare', cmc: 0),
-        $card(set: $lea, number: '161', name: 'Lightning Bolt', type: 'Instant', rarity: 'common', cmc: 1),
-        $card(set: $lea, number: '161', name: 'Lightning Bolt', type: 'Instant', rarity: 'common', cmc: 1, lang: 'es', printedName: 'Relámpago'),
+        $bolt,
+        $inSpanish($bolt, 'Relámpago'),
         $card(set: $lea, number: '255', name: 'Juggernaut', type: 'Artifact Creature — Juggernaut', rarity: 'uncommon', cmc: 4),
-        $card(set: $fdn, number: '227', name: 'Llanowar Elves', type: 'Creature — Elf Druid', rarity: 'common', cmc: 1),
-        $card(set: $fdn, number: '227', name: 'Llanowar Elves', type: 'Creature — Elf Druid', rarity: 'common', cmc: 1, lang: 'es', printedName: 'Elfos de Llanowar'),
+        $elves,
+        $inSpanish($elves, 'Elfos de Llanowar'),
         $card(set: $fdn, number: '278', name: 'Forest', type: 'Basic Land — Forest', rarity: 'common', cmc: 0),
     ]);
 });

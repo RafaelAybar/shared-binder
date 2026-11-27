@@ -21,6 +21,7 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property string|null $printed_name
  * @property string|null $mana_cost
+ * @property string|null $cmc
  * @property string|null $type_line
  * @property string|null $image_small_url
  * @property string|null $image_small_back_url

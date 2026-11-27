@@ -245,7 +245,9 @@ depende:
 
 ### El catálogo de Magic no se normaliza
 
-`mtg_cards` guarda cada impresión tal como la da Scryfall:
+`mtg_cards` guarda cada impresión tal como la da Scryfall, completando con los datos de las
+caras los que faltan en la raíz (ver
+[Cartas con varias caras](../procesos/ingesta.md#cartas-con-varias-caras)):
 
 - `finishes` es una lista de acabados. Rompe la 1FN.
 - `name`, `mana_cost`, `cmc` y `type_line` son del texto Oracle de la carta, que es el mismo en

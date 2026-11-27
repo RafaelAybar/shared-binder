@@ -88,6 +88,19 @@ Solo se guarda la URL de la imagen en tamaño *small* (146×204) servida por Scr
 `image_small_url` (cara frontal o única) e `image_small_back_url` (cara trasera de las
 cartas de dos caras). No se descarga ninguna imagen.
 
+### Cartas con varias caras
+
+Scryfall da algunos datos solo en cada cara (`card_faces`) y no en la raíz de la carta. Si
+faltan en la raíz, el ETL los toma de las caras:
+
+- `mana_cost`, en las cartas de dos caras físicas (`transform`, `modal_dfc`...). Se guardan
+  los costes de las caras unidos con « // », como hace Scryfall en las cartas divididas, sin
+  las caras que no tienen coste: Delver of Secrets // Insectile Aberration guarda `{U}`.
+- `printed_name`, en las impresiones no inglesas de cualquier carta con varias caras,
+  también las divididas y las de aventura. Se unen igual: `Fuego // Hielo`.
+- `type_line` y `cmc`, en las cartas reversibles (`reversible_card`). `type_line` se une
+  igual, y `cmc` es el de la cara frontal.
+
 ### Acabados
 
 `mtg_cards.finishes` guarda el campo `finishes` de Scryfall: los acabados en que existe la

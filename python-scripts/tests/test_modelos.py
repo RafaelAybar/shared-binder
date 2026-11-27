@@ -1,5 +1,7 @@
-"""Tests de los modelos de Scryfall (modelos.py): imágenes small y sets oficiales."""
+"""Tests de los modelos de Scryfall (modelos.py): imágenes small, datos que solo tienen
+las caras y sets oficiales."""
 
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -75,6 +77,62 @@ def test_imagen_aun_no_escaneada_se_guarda_vacia() -> None:
 
     for carta in validar(cartas):
         assert (carta.imagen_small, carta.imagen_small_trasera) == (None, None)
+
+
+def test_coste_de_las_cartas_de_dos_caras() -> None:
+    """Se unen los costes de las caras, sin las que no tienen."""
+    valki = tres_cartas()[1] | {
+        "layout": "modal_dfc",
+        "name": "Valki, God of Lies // Tibalt, Cosmic Impostor",
+        "card_faces": [
+            {"name": "Valki, God of Lies", "mana_cost": "{1}{B}"},
+            {"name": "Tibalt, Cosmic Impostor", "mana_cost": "{5}{B}{R}"},
+        ],
+    }
+
+    assert validar(tres_cartas())[1].coste_mana == "{U}"
+    assert CartaScryfall.model_validate(valki).coste_mana == "{1}{B} // {5}{B}{R}"
+
+
+def test_nombre_impreso_de_las_cartas_con_varias_caras() -> None:
+    fuego_hielo = tres_cartas()[2]  # la impresión en español
+    del fuego_hielo["printed_name"]
+    fuego_hielo |= {
+        "layout": "split",
+        "name": "Fire // Ice",
+        "card_faces": [
+            {"name": "Fire", "printed_name": "Fuego"},
+            {"name": "Ice", "printed_name": "Hielo"},
+        ],
+    }
+
+    assert CartaScryfall.model_validate(fuego_hielo).nombre_impreso == "Fuego // Hielo"
+    assert validar(tres_cartas())[1].nombre_impreso is None  # Delver, en inglés
+
+
+def test_cartas_reversibles() -> None:
+    """Las dos caras son la misma carta con otra ilustración."""
+    cara = {
+        "name": "Llanowar Elves",
+        "mana_cost": "{G}",
+        "type_line": "Creature — Elf Druid",
+        "cmc": 1.0,
+    }
+    reversible = tres_cartas()[0]
+    for campo in ("mana_cost", "cmc", "type_line"):
+        del reversible[campo]
+    reversible |= {
+        "layout": "reversible_card",
+        "name": "Llanowar Elves // Llanowar Elves",
+        "card_faces": [cara, cara],
+    }
+    carta = CartaScryfall.model_validate(reversible)
+
+    assert (carta.coste_mana, carta.linea_tipo, carta.valor_mana) == (
+        "{G} // {G}",
+        "Creature — Elf Druid // Creature — Elf Druid",
+        Decimal("1"),
+    )
 
 
 def test_acabados_sin_repetir_y_siempre_en_el_mismo_orden() -> None:

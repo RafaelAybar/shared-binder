@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS mtg_cards (
     layout               text        COLLATE "C" NOT NULL,
     finishes             mtg_finish[] NOT NULL CHECK (cardinality(finishes) > 0),  -- acabados en que existe
     name                 text        NOT NULL,     -- nombre en inglés (Oracle)
-    printed_name         text,                     -- nombre impreso, en cartas no inglesas
+    printed_name         text,                     -- nombre impreso, si no es el de Oracle
     mana_cost            text,
     type_line            text,
     image_small_url      text,                     -- cara frontal (o única)
@@ -94,11 +94,12 @@ CREATE INDEX IF NOT EXISTS mtg_cards_set_lang_number_idx
 -- Todas las impresiones de una misma carta (mismo texto Oracle).
 CREATE INDEX IF NOT EXISTS mtg_cards_oracle_id_idx ON mtg_cards (oracle_id);
 
--- Catálogo de la web (/cards): las cartas de un idioma por orden alfabético,
--- WHERE lang = ? ORDER BY name, id LIMIT 50. Sin él, cada página y su COUNT(*) leen la tabla
--- entera. id desempata las cartas con el mismo nombre, para que las páginas no se solapen.
-CREATE INDEX IF NOT EXISTS mtg_cards_lang_name_id_idx
-    ON mtg_cards (lang, name, id);
+-- Catálogo de la web (/cards): las cartas de un idioma por el nombre que se muestra,
+-- WHERE lang = ? ORDER BY coalesce(printed_name, name), id LIMIT 50. Sin él, cada página y
+-- su COUNT(*) leen la tabla entera. id desempata las cartas con el mismo nombre, para que
+-- las páginas no se solapen.
+CREATE INDEX IF NOT EXISTS mtg_cards_lang_display_name_id_idx
+    ON mtg_cards (lang, coalesce(printed_name, name), id);
 
 -- Búsqueda por nombre en inglés y por nombre impreso (español, japonés...), sin
 -- distinguir mayúsculas y por cualquier parte del nombre: ILIKE '%texto%', o similitud

@@ -103,7 +103,7 @@ def test_cada_dato_se_guarda_en_su_columna(conn: psycopg.Connection) -> None:
             "en",
             None,
             normal_y_foil,
-            None,
+            "{U}",
             un_mana,
             imagen(ID_DELVER),
             imagen(ID_DELVER, "back"),

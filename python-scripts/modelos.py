@@ -4,6 +4,7 @@ Solo se declaran los campos que se guardan o se usan para filtrar; el resto se i
 Referencia: https://scryfall.com/docs/api
 """
 
+from collections.abc import Callable
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Final
@@ -53,6 +54,10 @@ class CaraCarta(ModeloScryfall):
     """Una cara de una carta con varias caras (card_faces)."""
 
     name: str
+    printed_name: str | None = None
+    mana_cost: str | None = None
+    type_line: str | None = None
+    cmc: Decimal | None = None
     image_uris: ImagenesCarta | None = None
 
 
@@ -77,10 +82,10 @@ class CartaScryfall(ModeloScryfall):
         BeforeValidator(lambda valor: [] if valor is None else valor),
         AfterValidator(_ordenar_acabados),
     ] = Field(default_factory=list)
+    # printed_name, mana_cost, type_line y cmc faltan en la raíz de algunas cartas con
+    # varias caras: el ETL guarda los de las propiedades de abajo, que los toman de las
+    # caras. cmc es decimal porque algunas cartas Un- cuestan ½.
     mana_cost: str | None = None
-    # Valor de maná. A diferencia de mana_cost, viene en la raíz también en las cartas
-    # de dos caras; solo falta en las reversibles. Es decimal porque algunas cartas Un-
-    # cuestan ½.
     cmc: Decimal | None = None
     type_line: str | None = None
     released_at: date
@@ -90,6 +95,36 @@ class CartaScryfall(ModeloScryfall):
     image_status: str | None = None
     image_uris: ImagenesCarta | None = None
     card_faces: list[CaraCarta] | None = None
+
+    @property
+    def nombre_impreso(self) -> str | None:
+        """Las cartas no inglesas con varias caras (también split y aventura) solo lo
+        tienen en cada cara."""
+        if self.printed_name is not None:
+            return self.printed_name
+        return self._unir_caras(lambda cara: cara.printed_name)
+
+    @property
+    def coste_mana(self) -> str | None:
+        """Las cartas de dos caras físicas solo lo tienen en cada cara. Las caras sin
+        coste no se unen: Delver of Secrets // Insectile Aberration cuesta {U}."""
+        if self.mana_cost is not None:
+            return self.mana_cost
+        return self._unir_caras(lambda cara: cara.mana_cost)
+
+    @property
+    def linea_tipo(self) -> str | None:
+        """Las cartas reversibles solo la tienen en cada cara."""
+        if self.type_line is not None:
+            return self.type_line
+        return self._unir_caras(lambda cara: cara.type_line)
+
+    @property
+    def valor_mana(self) -> Decimal | None:
+        """Las cartas reversibles solo lo tienen en cada cara: se toma el de la frontal."""
+        if self.cmc is not None or not self.card_faces:
+            return self.cmc
+        return self.card_faces[0].cmc
 
     @property
     def imagen_small(self) -> str | None:
@@ -122,6 +157,16 @@ class CartaScryfall(ModeloScryfall):
                 "«Acabados» en docs/procesos/ingesta.md"
             )
         return None
+
+    def _unir_caras(self, campo: Callable[[CaraCarta], str | None]) -> str | None:
+        """El campo de cada cara, unidos con « // » como Scryfall une los nombres. None si
+        ninguna cara lo tiene."""
+        valores = [
+            v for cara in self.card_faces or [] if (v := campo(cara)) is not None
+        ]
+        if not valores:
+            return None
+        return " // ".join(valor for valor in valores if valor)
 
     def _imagen_de_cara(self, indice: int) -> str | None:
         if not self.card_faces or len(self.card_faces) <= indice:

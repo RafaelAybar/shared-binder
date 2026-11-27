@@ -5,6 +5,7 @@ Referencia: https://scryfall.com/docs/api
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Annotated, Any, Final
 from uuid import UUID
 
@@ -77,6 +78,10 @@ class CartaScryfall(ModeloScryfall):
         AfterValidator(_ordenar_acabados),
     ] = Field(default_factory=list)
     mana_cost: str | None = None
+    # Valor de maná. A diferencia de mana_cost, viene en la raíz también en las cartas
+    # de dos caras; solo falta en las reversibles. Es decimal porque algunas cartas Un-
+    # cuestan ½.
+    cmc: Decimal | None = None
     type_line: str | None = None
     released_at: date
     digital: bool

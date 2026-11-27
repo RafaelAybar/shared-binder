@@ -152,6 +152,7 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
         date released_at
+        numeric cmc "valor de maná"
         text collector_number "orden natural"
         text lang
         text rarity
@@ -247,8 +248,8 @@ depende:
 `mtg_cards` guarda cada impresión tal como la da Scryfall:
 
 - `finishes` es una lista de acabados. Rompe la 1FN.
-- `name`, `mana_cost` y `type_line` son del texto Oracle de la carta, que es el mismo en todas
-  sus impresiones e idiomas. Dependen de `oracle_id`, no de la impresión
+- `name`, `mana_cost`, `cmc` y `type_line` son del texto Oracle de la carta, que es el mismo en
+  todas sus impresiones e idiomas. Dependen de `oracle_id`, no de la impresión
   (`id → oracle_id → name`). Rompe la 3FN.
 
 Se deja así porque es una copia de solo lectura de Scryfall. Solo la escribe el ETL, que

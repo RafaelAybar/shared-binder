@@ -91,13 +91,15 @@ def tres_cartas(id_set: str = ID_FDN) -> list[dict[str, Any]]:
         rarity="common",
         layout="normal",
         mana_cost="{G}",
+        cmc=1.0,
         type_line="Creature — Elf Druid",
         image_uris={
             "small": imagen(ID_LLANOWAR),
             "normal": "https://cards.scryfall.io/n.jpg",
         },
     )
-    # Dos caras físicas: no hay image_uris en la raíz, cada cara tiene la suya.
+    # Dos caras físicas: no hay image_uris ni mana_cost en la raíz, cada cara tiene los
+    # suyos. cmc sí está en la raíz.
     delver = _carta(
         id_set,
         id=ID_DELVER,
@@ -106,6 +108,7 @@ def tres_cartas(id_set: str = ID_FDN) -> list[dict[str, Any]]:
         collector_number="51",
         rarity="common",
         layout="transform",
+        cmc=1.0,
         type_line="Creature — Human Wizard // Creature — Human Insect",
         card_faces=[
             {
@@ -133,6 +136,7 @@ def tres_cartas(id_set: str = ID_FDN) -> list[dict[str, Any]]:
         rarity="uncommon",
         layout="normal",
         mana_cost="{R}",
+        cmc=1.0,
         type_line="Instant",
         printed_type_line="Instantáneo",
         finishes=["etched"],

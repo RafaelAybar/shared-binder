@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS mtg_cards (
     created_at           timestamptz NOT NULL DEFAULT now(),
     updated_at           timestamptz NOT NULL DEFAULT now(),
     released_at          date        NOT NULL,
+    cmc                  numeric,                  -- valor de maná; decimal en algunas cartas Un-
     collector_number     text        COLLATE mtg_numero_coleccion NOT NULL,
     lang                 text        COLLATE "C" NOT NULL,
     rarity               text        COLLATE "C" NOT NULL,
@@ -92,6 +93,12 @@ CREATE INDEX IF NOT EXISTS mtg_cards_set_lang_number_idx
 
 -- Todas las impresiones de una misma carta (mismo texto Oracle).
 CREATE INDEX IF NOT EXISTS mtg_cards_oracle_id_idx ON mtg_cards (oracle_id);
+
+-- Catálogo de la web (/cards): las cartas de un idioma por orden alfabético,
+-- WHERE lang = ? ORDER BY name, id LIMIT 50. Sin él, cada página y su COUNT(*) leen la tabla
+-- entera. id desempata las cartas con el mismo nombre, para que las páginas no se solapen.
+CREATE INDEX IF NOT EXISTS mtg_cards_lang_name_id_idx
+    ON mtg_cards (lang, name, id);
 
 -- Búsqueda por nombre en inglés y por nombre impreso (español, japonés...), sin
 -- distinguir mayúsculas y por cualquier parte del nombre: ILIKE '%texto%', o similitud

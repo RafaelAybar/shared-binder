@@ -201,16 +201,13 @@ Se vuelve a arrancar con el mismo `docker compose --profile db up -d`. Usa siemp
 | Comando | Contenedor | Datos |
 | --- | --- | --- |
 | `docker compose --profile db stop` | Se para y se conserva | Se conservan |
-| `docker compose --profile db down` | Se elimina | La base de datos queda vacía (ver aviso) |
-| `docker compose --profile db down -v` | Se elimina | Se borran todos los volúmenes |
+| `docker compose --profile db down` | Se elimina | Se conservan en el volumen `postgres_data` |
+| `docker compose --profile db down -v` | Se elimina | Se borra el volumen: la base de datos queda vacía |
 
-> **Aviso: `down` vacía la base de datos.** `docker-compose.yaml` monta el volumen
-> `postgres_data` en `/var/lib/postgresql/19/data`, pero la imagen `postgres:19` guarda los
-> datos en `/var/lib/postgresql/19/docker` (`PGDATA`), dentro de un volumen anónimo ligado al
-> contenedor. `down` elimina el contenedor y el siguiente `up` crea uno nuevo con la base de
-> datos vacía, así que habría que repetir `php artisan migrate` y la carga inicial del ETL.
-> Mientras el montaje no se cambie a `postgres_data:/var/lib/postgresql`, para la base de
-> datos con `stop`.
+Los datos están en el volumen `postgres_data`, montado en `/var/lib/postgresql`. La imagen
+guarda cada versión mayor en su propia carpeta (`19/docker`, que es `PGDATA`), así que al pasar a
+`postgres:20` las dos versiones estarán en el mismo volumen, que es lo que necesita
+`pg_upgrade`.
 
 Si se cierra Docker o se reinicia el equipo, el contenedor se para pero no se elimina, y los
 datos se conservan. El servicio no tiene política de reinicio: hay que volver a arrancarlo a
@@ -226,6 +223,6 @@ mano.
 | `password authentication failed for user "test-user"` | `DB_PASSWORD` no coincide con `POSTGRES_PASSWORD` | Copia el valor. Cambiar `POSTGRES_PASSWORD` después del primer arranque no cambia la contraseña: solo se aplica al crear la base de datos |
 | Página en blanco y errores al cargar recursos de `localhost:5173` | Quedó `public/hot` de un Vite cerrado a la fuerza | `rm shared-binder/public/hot`, o arranca `composer dev` |
 | `Vite manifest not found` | Ni Vite está en marcha ni el frontend está compilado | `composer dev`, o `npm run build` en `shared-binder/` |
-| La base de datos está vacía después de un `down` | Ver el aviso de [Parar la base de datos](#parar-la-base-de-datos) | `php artisan migrate` y carga inicial del ETL |
+| La base de datos está vacía al arrancar | Se paró con `down -v`, o el contenedor se creó con el montaje antiguo (`/var/lib/postgresql/19/data`), que dejaba los datos en un volumen anónimo | `docker compose --profile db down` y `up -d` para usar el montaje actual, y después `php artisan migrate` y la carga inicial del ETL |
 | ETL: `Falta la variable de entorno obligatoria PG_…` | Las variables no están exportadas en esa terminal | Exporta las variables `PG_*` |
 | ETL: `CERTIFICATE_VERIFY_FAILED` | Python de python.org en macOS | Ver la nota de macOS en la [documentación de la ingesta](ingesta.md) |

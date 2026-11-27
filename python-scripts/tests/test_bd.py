@@ -12,6 +12,7 @@ toca las tablas del esquema public.
 import json
 import os
 from collections.abc import Iterator
+from decimal import Decimal
 from typing import Any
 
 import psycopg
@@ -83,21 +84,31 @@ def test_cada_dato_se_guarda_en_su_columna(conn: psycopg.Connection) -> None:
 
     assert (resumen.insertadas, resumen.actualizadas, resumen.errores) == (3, 0, 0)
     filas = conn.execute(
-        "SELECT id, lang, printed_name, finishes::text[], mana_cost, image_small_url,"
-        " image_small_back_url FROM mtg_cards"
+        "SELECT id, lang, printed_name, finishes::text[], mana_cost, cmc,"
+        " image_small_url, image_small_back_url FROM mtg_cards"
     )
     normal_y_foil = ["nonfoil", "foil"]
+    un_mana = Decimal("1")
     assert {str(f[0]): f[1:] for f in filas} == {
-        ID_LLANOWAR: ("en", None, normal_y_foil, "{G}", imagen(ID_LLANOWAR), None),
+        ID_LLANOWAR: (
+            "en",
+            None,
+            normal_y_foil,
+            "{G}",
+            un_mana,
+            imagen(ID_LLANOWAR),
+            None,
+        ),
         ID_DELVER: (
             "en",
             None,
             normal_y_foil,
             None,
+            un_mana,
             imagen(ID_DELVER),
             imagen(ID_DELVER, "back"),
         ),
-        ID_RAYO: ("es", "Rayo", ["etched"], "{R}", imagen(ID_RAYO), None),
+        ID_RAYO: ("es", "Rayo", ["etched"], "{R}", un_mana, imagen(ID_RAYO), None),
     }
     assert conn.execute("SELECT code, name FROM mtg_sets").fetchall() == [
         ("fdn", "Foundations")
